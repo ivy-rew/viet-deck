@@ -77,6 +77,6 @@ for i in $(seq 0 $((N-2))); do
 done
 
 # Cleanup (optional)
-# rm -rf "$WORKDIR"
+rm -rf "$WORKDIR"
 
 echo "Done: splitted into $((N-1)) slides in ./${BASENAME}_slides/"
