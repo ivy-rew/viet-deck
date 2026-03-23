@@ -17,3 +17,9 @@ Purification, Why?:
 - solves vietnames character scanning issues not solved by tesseract OCR
 - structured output (CSV) for the randomly positioned content
 - (audio/picture) inclusion is a free gem, could be implemented straight forward if preferred
+
+Dependencies:
+- bash
+- tesseract
+- ffmpeg
+- copilot (CLI)

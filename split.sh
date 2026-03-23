@@ -65,7 +65,7 @@ for i in $(seq 0 $((N-2))); do
   DUR=$(awk -v a="$START" -v b="$END" 'BEGIN{printf "%.3f", b-a}')
   DUR=$(echo "$DUR" | sed 's/,/./g')
   # Skip segments shorter than 5 seconds
-  if (( $(echo "$DUR >= 5.0" | bc -l) )); then
+  if (( $(echo "$DUR >= 7.0" | bc -l) )); then
     idx=$(printf "%03d" $((i+1)))
     OUT="${BASENAME}_slides/${BASENAME}_slide_${idx}.mp4"
     # Use re-encoding for frame-accurate cuts and to avoid timestamp issues
