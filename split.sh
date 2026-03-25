@@ -26,7 +26,7 @@ fi
 echo "Video duration: $DURATION seconds"
 
 # 2) Run scene detection; adjust threshold if needed (default 0.4)
-THRESH=0.009
+THRESH=0.0009
 ffmpeg -hide_banner -i "$INPUT" -filter_complex "select='gt(scene,$THRESH)',showinfo" -f null - 2> "$scene_log"
 
 # 3) Parse pts_time lines into sorted list and produce segment boundaries
