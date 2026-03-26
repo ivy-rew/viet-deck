@@ -14,26 +14,20 @@ if ! [ -d $WORKDIR ]; then
   mkdir -p "$WORKDIR"
   scene_log="$WORKDIR/scene_log.txt"
   times_file="$WORKDIR/times.txt"
-  duration_file="$WORKDIR/duration.txt"
 
   # 1) Get duration in seconds (float)
-  ffmpeg -v error -i "$INPUT" -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 2> /dev/null > "$duration_file" || true
-  DURATION=$(awk 'NR==1{printf "%.3f",$1}' "$duration_file")
-  if [ -z "$DURATION" ]; then
-    # fallback using ffprobe
-      DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$INPUT")
-      # sanitize: remove spaces/newlines, ensure dot decimal
-      DURATION=$(echo "$DURATION" | tr -d '[:space:]' | awk '{printf "%.3f", $1}' | sed 's/,/./g')
-  fi
+  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$INPUT" | sed 's/\./,/g' )
+  # sanitize: remove spaces/newlines, ensure dot decimal
+  DURATION=$(echo "$DURATION" | tr -d '[:space:]' | awk '{printf "%.3f", $1}' | sed 's/,/./g')
   echo "Video duration: $DURATION seconds"
 
   # 2) Run scene detection; adjust threshold if needed (default 0.4)
-  THRESH=0.01
+  THRESH=0.001
   ffmpeg -hide_banner -i "$INPUT" -filter_complex "select='gt(scene,$THRESH)',showinfo" -f null - 2> "$scene_log"
 
   # 3) Parse pts_time lines into sorted list and produce segment boundaries
   # Collect detected times
-  grep -oP "pts_time:\K[0-9]+\.[0-9]+" "$scene_log" | awk '{printf "%.3f\n",$1}' | sort -n > "$times_file"
+  grep -oP "pts_time:\K[0-9]+\.[0-9]+" "$scene_log" | sed 's/\./,/g' | awk '{printf "%.3f\n",$1}' | sort -n > "$times_file"
 
   # Always start at 0.000
   TMP_TIMES="$WORKDIR/_all_times.txt"
@@ -42,11 +36,13 @@ if ! [ -d $WORKDIR ]; then
   # Ensure last boundary is video duration (rounded to 3 decimals)
   echo "$DURATION" | awk '{printf "%.3f\n", $1}' >> "$TMP_TIMES"
 
-  # Remove possible duplicate/very-close timestamps (merge if closer than 0.2s)
+  # Remove possible duplicate/very-close timestamps (merge if closer than 2.2s)
   awk 'BEGIN{prev=-1}
   { if(prev<0){ prev=$1; printf("%.3f\n",$1) }
-    else if(($1-prev) >= 0.2){ prev=$1; printf("%.3f\n",$1) } else { prev=$1 }
-  }' "$TMP_TIMES" > "$WORKDIR/_clean_times.txt"
+    else if(($1-prev) >= 2.2){ printf("%.3f\n",prev); prev=$1 }
+    else { prev=$1 }
+  }
+  END{ if(prev>=0) printf("%.3f\n",prev) }' "$TMP_TIMES" > "$WORKDIR/_clean_times.txt"
 else
   echo "Skipping scene detect, re-using _tmp"
 fi
