@@ -9,50 +9,55 @@ fi
 INPUT="$1"
 BASENAME="$(basename "$INPUT" | sed 's/\.[^.]*$//')"
 WORKDIR="./${BASENAME}_slides_tmp"
-mkdir -p "$WORKDIR"
-scene_log="$WORKDIR/scene_log.txt"
-times_file="$WORKDIR/times.txt"
-duration_file="$WORKDIR/duration.txt"
 
-# 1) Get duration in seconds (float)
-ffmpeg -v error -i "$INPUT" -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 2> /dev/null > "$duration_file" || true
-DURATION=$(awk 'NR==1{printf "%.3f",$1}' "$duration_file")
-if [ -z "$DURATION" ]; then
-  # fallback using ffprobe
-    DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$INPUT")
-    # sanitize: remove spaces/newlines, ensure dot decimal
-    DURATION=$(echo "$DURATION" | tr -d '[:space:]' | awk '{printf "%.3f", $1}' | sed 's/,/./g')
+if ! [ -d $WORKDIR ]; then
+  mkdir -p "$WORKDIR"
+  scene_log="$WORKDIR/scene_log.txt"
+  times_file="$WORKDIR/times.txt"
+  duration_file="$WORKDIR/duration.txt"
+
+  # 1) Get duration in seconds (float)
+  ffmpeg -v error -i "$INPUT" -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 2> /dev/null > "$duration_file" || true
+  DURATION=$(awk 'NR==1{printf "%.3f",$1}' "$duration_file")
+  if [ -z "$DURATION" ]; then
+    # fallback using ffprobe
+      DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$INPUT")
+      # sanitize: remove spaces/newlines, ensure dot decimal
+      DURATION=$(echo "$DURATION" | tr -d '[:space:]' | awk '{printf "%.3f", $1}' | sed 's/,/./g')
+  fi
+  echo "Video duration: $DURATION seconds"
+
+  # 2) Run scene detection; adjust threshold if needed (default 0.4)
+  THRESH=0.01
+  ffmpeg -hide_banner -i "$INPUT" -filter_complex "select='gt(scene,$THRESH)',showinfo" -f null - 2> "$scene_log"
+
+  # 3) Parse pts_time lines into sorted list and produce segment boundaries
+  # Collect detected times
+  grep -oP "pts_time:\K[0-9]+\.[0-9]+" "$scene_log" | awk '{printf "%.3f\n",$1}' | sort -n > "$times_file"
+
+  # Always start at 0.000
+  TMP_TIMES="$WORKDIR/_all_times.txt"
+  echo "0.000" > "$TMP_TIMES"
+  cat "$times_file" >> "$TMP_TIMES"
+  # Ensure last boundary is video duration (rounded to 3 decimals)
+  echo "$DURATION" | awk '{printf "%.3f\n", $1}' >> "$TMP_TIMES"
+
+  # Remove possible duplicate/very-close timestamps (merge if closer than 0.2s)
+  awk 'BEGIN{prev=-1}
+  { if(prev<0){ prev=$1; printf("%.3f\n",$1) }
+    else if(($1-prev) >= 0.2){ prev=$1; printf("%.3f\n",$1) } else { prev=$1 }
+  }' "$TMP_TIMES" > "$WORKDIR/_clean_times.txt"
+else
+  echo "Skipping scene detect, re-using _tmp"
 fi
-echo "Video duration: $DURATION seconds"
 
-# 2) Run scene detection; adjust threshold if needed (default 0.4)
-THRESH=0.01
-ffmpeg -hide_banner -i "$INPUT" -filter_complex "select='gt(scene,$THRESH)',showinfo" -f null - 2> "$scene_log"
-
-# 3) Parse pts_time lines into sorted list and produce segment boundaries
-# Collect detected times
-grep -oP "pts_time:\K[0-9]+\.[0-9]+" "$scene_log" | awk '{printf "%.3f\n",$1}' | sort -n > "$times_file"
-
-# Always start at 0.000
-TMP_TIMES="$WORKDIR/_all_times.txt"
-echo "0.000" > "$TMP_TIMES"
-cat "$times_file" >> "$TMP_TIMES"
-# Ensure last boundary is video duration (rounded to 3 decimals)
-echo "$DURATION" | awk '{printf "%.3f\n", $1}' >> "$TMP_TIMES"
-
-# Remove possible duplicate/very-close timestamps (merge if closer than 0.2s)
-awk 'BEGIN{prev=-1}
-{ if(prev<0){ prev=$1; printf("%.3f\n",$1) }
-  else if(($1-prev) >= 0.2){ prev=$1; printf("%.3f\n",$1) } else { prev=$1 }
-}' "$TMP_TIMES" > "$WORKDIR/_clean_times.txt"
 
 # Build pairs (start,end)
 mapfile -t BOUNDS < "$WORKDIR/_clean_times.txt"
 N=${#BOUNDS[@]}
 if [ "$N" -lt 2 ]; then
   echo "No scene changes detected; producing single file."
-  ffmpeg -hide_banner -y -i "$INPUT" -c copy "${BASENAME}_slide_001.mp4"
-  exit 0
+  exit 1
 fi
 
 
