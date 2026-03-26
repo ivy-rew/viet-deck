@@ -26,7 +26,7 @@ fi
 echo "Video duration: $DURATION seconds"
 
 # 2) Run scene detection; adjust threshold if needed (default 0.4)
-THRESH=0.0009
+THRESH=0.01
 ffmpeg -hide_banner -i "$INPUT" -filter_complex "select='gt(scene,$THRESH)',showinfo" -f null - 2> "$scene_log"
 
 # 3) Parse pts_time lines into sorted list and produce segment boundaries
@@ -55,8 +55,10 @@ if [ "$N" -lt 2 ]; then
   exit 0
 fi
 
+
 mkdir -p "${BASENAME}_slides"
 
+SKIP_DURATION=4.0
 for i in $(seq 0 $((N-2))); do
   # Sanitize times: convert comma to dot
   START=$(echo "${BOUNDS[$i]}" | sed 's/,/./g')
@@ -65,18 +67,18 @@ for i in $(seq 0 $((N-2))); do
   DUR=$(awk -v a="$START" -v b="$END" 'BEGIN{printf "%.3f", b-a}')
   DUR=$(echo "$DUR" | sed 's/,/./g')
   # Skip segments shorter than 5 seconds
-  if (( $(echo "$DUR >= 7.0" | bc -l) )); then
+  if (( $(echo "$DUR >= ${SKIP_DURATION}" | bc -l) )); then
     idx=$(printf "%03d" $((i+1)))
     OUT="${BASENAME}_slides/${BASENAME}_slide_${idx}.mp4"
     # Use re-encoding for frame-accurate cuts and to avoid timestamp issues
     ffmpeg -hide_banner -y -ss "$START" -i "$INPUT" -t "$DUR" -c:v libx264 -preset veryfast -crf 20 -c:a aac -b:a 128k "$OUT"
     echo "Wrote $OUT (start=$START duration=$DUR)"
   else
-    echo "Skipped segment (start=$START duration=$DUR < 5s)"
+    echo "Skipped segment (start=$START duration=$DUR < ${SKIP_DURATION}s)"
   fi
 done
 
 # Cleanup (optional)
-rm -rf "$WORKDIR"
+#rm -rf "$WORKDIR"
 
 echo "Done: splitted into $((N-1)) slides in ./${BASENAME}_slides/"
