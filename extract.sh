@@ -18,7 +18,7 @@ if [ $# -ne 1 ]; then
 fi
 
 SLIDES_DIR="$1"
-IMG_DIR="${SLIDES_DIR}/scene_images"
+IMG_DIR="${SLIDES_DIR}/scene_slides"
 AUDIO_DIR="${SLIDES_DIR}/scene_audio"
 mkdir -p "$IMG_DIR" "$AUDIO_DIR"
 
