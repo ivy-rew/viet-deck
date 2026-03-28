@@ -10,7 +10,14 @@ INPUT="$1"
 BASENAME="$(basename "$INPUT" | sed 's/\.[^.]*$//')"
 WORKDIR="./${BASENAME}_slides_tmp"
 
-if ! [ -d $WORKDIR ]; then
+# Scene-detection tuning knobs (override with environment variables)
+SCENE_THRESH="${SCENE_THRESH:-0.009}"
+ANALYZE_FPS="${ANALYZE_FPS:-2}"
+ANALYZE_WIDTH="${ANALYZE_WIDTH:-960}"
+MIN_GAP="${MIN_GAP:-0.5}"
+ANALYZE_GRAY="${ANALYZE_GRAY:-1}"
+
+if ! [ -d "$WORKDIR" ]; then
   mkdir -p "$WORKDIR"
   scene_log="$WORKDIR/scene_log.txt"
   times_file="$WORKDIR/times.txt"
@@ -21,9 +28,15 @@ if ! [ -d $WORKDIR ]; then
   DURATION=$(echo "$DURATION" | tr -d '[:space:]' | awk '{printf "%.3f", $1}' | sed 's/,/./g')
   echo "Video duration: $DURATION seconds"
 
-  # 2) Run scene detection; adjust threshold if needed (default 0.4)
-  THRESH=0.001
-  ffmpeg -hide_banner -i "$INPUT" -filter_complex "select='gt(scene,$THRESH)',showinfo" -f null - 2> "$scene_log"
+  # 2) Run scene detection on preprocessed frames.
+  #    Use a minimum gap in-filter so one transition does not emit many close cuts.
+  COLOR_FILTER=""
+  if [ "$ANALYZE_GRAY" = "1" ]; then
+    COLOR_FILTER=",format=gray"
+  fi
+  DETECT_FILTER="fps=${ANALYZE_FPS},scale=${ANALYZE_WIDTH}:-1:flags=fast_bilinear${COLOR_FILTER},select='isnan(prev_selected_t)+gte(t-prev_selected_t,${MIN_GAP})*gt(scene,${SCENE_THRESH})',showinfo"
+  echo "Detect config: thresh=${SCENE_THRESH} fps=${ANALYZE_FPS} width=${ANALYZE_WIDTH} min_gap=${MIN_GAP} gray=${ANALYZE_GRAY}"
+  ffmpeg -hide_banner -i "$INPUT" -vf "$DETECT_FILTER" -f null - 2> "$scene_log"
 
   # 3) Parse pts_time lines into sorted list and produce segment boundaries
   # Collect detected times
@@ -36,10 +49,10 @@ if ! [ -d $WORKDIR ]; then
   # Ensure last boundary is video duration (rounded to 3 decimals)
   echo "$DURATION" | awk '{printf "%.3f\n", $1}' >> "$TMP_TIMES"
 
-  # Remove possible duplicate/very-close timestamps (merge if closer than 2.2s)
-  awk 'BEGIN{prev=-1}
+  # Remove possible duplicate/very-close timestamps (merge if closer than MIN_GAP)
+  awk -v min_gap="$MIN_GAP" 'BEGIN{prev=-1}
   { if(prev<0){ prev=$1; printf("%.3f\n",$1) }
-    else if(($1-prev) >= 2.2){ printf("%.3f\n",prev); prev=$1 }
+    else if(($1-prev) >= min_gap){ printf("%.3f\n",prev); prev=$1 }
     else { prev=$1 }
   }
   END{ if(prev>=0) printf("%.3f\n",prev) }' "$TMP_TIMES" > "$WORKDIR/_clean_times.txt"
@@ -59,7 +72,7 @@ fi
 
 mkdir -p "${BASENAME}_slides"
 
-SKIP_DURATION=4.0
+SKIP_DURATION="${SKIP_DURATION:-6.0}"
 for i in $(seq 0 $((N-2))); do
   # Sanitize times: convert comma to dot
   START=$(echo "${BOUNDS[$i]}" | sed 's/,/./g')
@@ -67,7 +80,6 @@ for i in $(seq 0 $((N-2))); do
   # Compute duration = END - START
   DUR=$(awk -v a="$START" -v b="$END" 'BEGIN{printf "%.3f", b-a}')
   DUR=$(echo "$DUR" | sed 's/,/./g')
-  # Skip segments shorter than 5 seconds
   if (( $(echo "$DUR >= ${SKIP_DURATION}" | bc -l) )); then
     idx=$(printf "%03d" $((i+1)))
     OUT="${BASENAME}_slides/${BASENAME}_slide_${idx}.mp4"
