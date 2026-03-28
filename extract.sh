@@ -31,10 +31,14 @@ for SLIDE in "$SLIDES_DIR"/*.mp4; do
   # Preprocess image for better OCR
   mkdir -p "$SLIDES_DIR/scene_text"
   mkdir -p "$SLIDES_DIR/scene_bw"
-  convert "$IMG_DIR/${BASENAME}.jpg" -threshold 80% "$SLIDES_DIR/scene_bw/${BASENAME}.jpg"
-  # Use the BW image for OCR
+  # Focus OCR on the upper text area and enhance contrast/size for italic text
+  convert "$IMG_DIR/${BASENAME}.jpg" \
+    -crop 100%x48%+0+0 +repage \
+    -colorspace Gray -resize 250% -normalize -threshold 78% \
+    "$SLIDES_DIR/scene_bw/${BASENAME}.jpg"
+  # Use the processed top-text image for OCR
   BW_IMG="$SLIDES_DIR/scene_bw/${BASENAME}.jpg"
-  tesseract -l vie+eng --psm 4 "$BW_IMG" "$SLIDES_DIR/scene_text/${BASENAME}" > /dev/null 2>&1
+  tesseract -l vie+eng --oem 1 --psm 6 "$BW_IMG" "$SLIDES_DIR/scene_text/${BASENAME}" > /dev/null 2>&1
 
   # Use OpenCV script to crop main picture from each scene image
   SCENE_PICTURE_DIR="$SLIDES_DIR/scene_picture"
