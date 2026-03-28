@@ -108,8 +108,8 @@ for i in $(seq 0 $((N-2))); do
   if (( $(echo "$DUR >= ${SKIP_DURATION}" | bc -l) )); then
     idx=$(printf "%03d" $((i+1)))
     OUT="${BASENAME}_slides/${BASENAME}_slide_${idx}.mp4"
-    # Use re-encoding for frame-accurate cuts and to avoid timestamp issues
-    ffmpeg -hide_banner -y -ss "$START" -i "$INPUT" -t "$DUR" -c:v libx264 -preset veryfast -crf 20 -c:a aac -b:a 128k "$OUT"
+    # Keep frame-accurate video re-encode, but copy audio to avoid re-encoding.
+    ffmpeg -hide_banner -y -ss "$START" -i "$INPUT" -t "$DUR" -c:v libx264 -preset veryfast -crf 20 -c:a copy "$OUT"
     echo "Wrote $OUT (start=$START duration=$DUR)"
   else
     echo "Skipped segment (start=$START duration=$DUR < ${SKIP_DURATION}s)"
