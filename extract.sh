@@ -22,6 +22,16 @@ IMG_DIR="${SLIDES_DIR}/scene_slides"
 AUDIO_DIR="${SLIDES_DIR}/scene_audio"
 mkdir -p "$IMG_DIR" "$AUDIO_DIR"
 
+# Re-encode JPEG in place for smaller files while preserving pixel dimensions.
+compress_jpeg_inplace() {
+  local src="$1"
+  local quality="${2:-45}"
+  local tmp
+  tmp="${src}.tmp.jpg"
+  convert "$src" -strip -sampling-factor 4:2:0 -interlace Plane -quality "$quality" "$tmp"
+  mv "$tmp" "$src"
+}
+
 for SLIDE in "$SLIDES_DIR"/*.mp4; do
   BASENAME=$(basename "$SLIDE" .mp4)
   # Extract image after 2 seconds
@@ -40,10 +50,6 @@ for SLIDE in "$SLIDES_DIR"/*.mp4; do
   BW_IMG="$SLIDES_DIR/scene_bw/${BASENAME}.jpg"
   tesseract -l vie+eng --oem 1 --psm 6 "$BW_IMG" "$SLIDES_DIR/scene_text/${BASENAME}" > /dev/null 2>&1
 
-  # Use OpenCV script to crop main picture from each scene image
-  SCENE_PICTURE_DIR="$SLIDES_DIR/scene_picture"
-  python3 "$(dirname "$0")/extract_picture.py" "$IMG_DIR" "$SCENE_PICTURE_DIR"
-
   # Detect if image contains a picture (not just text/background)
   mkdir -p "$SLIDES_DIR/scene_picture"
   # Use ImageMagick to check for color variance (simple heuristic for picture detection)
@@ -52,8 +58,18 @@ for SLIDE in "$SLIDES_DIR"/*.mp4; do
   if (( $(echo "$COLOR_STD > 0.01" | bc -l) )); then
     # Crop white background using ImageMagick
     convert "$IMG_DIR/${BASENAME}.jpg" -fuzz 10% -trim +repage "$SLIDES_DIR/scene_picture/${BASENAME}.jpg"
+    compress_jpeg_inplace "$SLIDES_DIR/scene_picture/${BASENAME}.jpg" 45
     echo "Detected and cropped picture in $IMG_DIR/${BASENAME}.jpg"
   fi
+done
+
+# Use OpenCV script once after all slides are extracted.
+SCENE_PICTURE_DIR="$SLIDES_DIR/scene_picture"
+python3 "$(dirname "$0")/extract_picture.py" "$IMG_DIR" "$SCENE_PICTURE_DIR"
+
+# Compress all generated picture crops for small-screen use.
+find "$SCENE_PICTURE_DIR" -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) -print0 | while IFS= read -r -d '' img; do
+  compress_jpeg_inplace "$img" 45
 done
 
 echo "Extraction complete. Images in $IMG_DIR, audio in $AUDIO_DIR."
