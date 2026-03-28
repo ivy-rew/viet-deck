@@ -43,12 +43,11 @@ for SLIDE in "$SLIDES_DIR"/*.mp4; do
   mkdir -p "$SLIDES_DIR/scene_bw"
   # Focus OCR on the upper text area and enhance contrast/size for italic text
   convert "$IMG_DIR/${BASENAME}.jpg" \
-    -crop 100%x48%+0+0 +repage \
     -colorspace Gray -resize 250% -normalize -threshold 78% \
     "$SLIDES_DIR/scene_bw/${BASENAME}.jpg"
   # Use the processed top-text image for OCR
   BW_IMG="$SLIDES_DIR/scene_bw/${BASENAME}.jpg"
-  tesseract -l vie+eng --oem 1 --psm 6 "$BW_IMG" "$SLIDES_DIR/scene_text/${BASENAME}" > /dev/null 2>&1
+  tesseract -l vie+eng --oem 1 --psm 4 "$BW_IMG" "$SLIDES_DIR/scene_text/${BASENAME}" > /dev/null 2>&1
 
   # Detect if image contains a picture (not just text/background)
   mkdir -p "$SLIDES_DIR/scene_picture"
