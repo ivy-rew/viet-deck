@@ -26,8 +26,8 @@ for SLIDE in "$SLIDES_DIR"/*.mp4; do
   BASENAME=$(basename "$SLIDE" .mp4)
   # Extract image after 2 seconds
   ffmpeg -hide_banner -y -ss 2 -i "$SLIDE" -frames:v 1 -q:v 2 "$IMG_DIR/${BASENAME}.jpg"
-  # Extract audio as is
-  ffmpeg -hide_banner -y -i "$SLIDE" -vn -acodec copy "$AUDIO_DIR/${BASENAME}.m4a"
+  # Extract audio as mono MP3 at 64k for a good size/clarity balance
+  ffmpeg -hide_banner -y -i "$SLIDE" -vn -c:a libmp3lame -ac 1 -b:a 64k "$AUDIO_DIR/${BASENAME}.mp3"
   # Preprocess image for better OCR
   mkdir -p "$SLIDES_DIR/scene_text"
   mkdir -p "$SLIDES_DIR/scene_bw"
