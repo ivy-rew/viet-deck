@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 import os
 import sys
 
@@ -12,6 +11,42 @@ IMG_DIR = sys.argv[1]
 OUT_DIR = sys.argv[2]
 os.makedirs(OUT_DIR, exist_ok=True)
 
+
+def detect_picture_regions(img):
+    """Return bounding boxes for likely picture regions as (x, y, w, h)."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Keep non-white pixels. Most slide background is near white.
+    _, mask = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
+
+    # Remove tiny OCR/text noise while keeping larger blocks.
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return []
+
+    img_h, img_w = gray.shape
+    img_area = img_w * img_h
+    min_area = int(img_area * 0.01)  # at least 1% of slide area
+    min_w = int(img_w * 0.08)
+    min_h = int(img_h * 0.08)
+
+    boxes = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+        if area < min_area:
+            continue
+        if w < min_w or h < min_h:
+            continue
+        boxes.append((x, y, w, h))
+
+    boxes.sort(key=lambda b: (b[1], b[0]))
+    return boxes
+
 for fname in os.listdir(IMG_DIR):
     if not fname.lower().endswith('.jpg'):
         continue
@@ -21,26 +56,15 @@ for fname in os.listdir(IMG_DIR):
         print(f"Failed to read {img_path}")
         continue
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Threshold to remove white background
-    _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
-
-    # Find contours
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
+    boxes = detect_picture_regions(img)
+    if not boxes:
         print(f"No picture detected in {img_path}")
         continue
 
-    # Find largest contour (likely the picture)
-    largest = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(largest)
-    # Ignore very small regions
-    if w*h < 10000:
-        print(f"Detected region too small in {img_path}")
-        continue
-
-    # Crop and save
-    cropped = img[y:y+h, x:x+w]
-    out_path = os.path.join(OUT_DIR, fname)
-    cv2.imwrite(out_path, cropped)
-    print(f"Saved cropped picture to {out_path}")
+    base, ext = os.path.splitext(fname)
+    for idx, (x, y, w, h) in enumerate(boxes, start=1):
+        cropped = img[y:y + h, x:x + w]
+        out_name = f"{base}_{idx:02d}{ext}"
+        out_path = os.path.join(OUT_DIR, out_name)
+        cv2.imwrite(out_path, cropped)
+        print(f"Saved cropped picture to {out_path}")
