@@ -8,10 +8,10 @@ How to:
 1. Download the video
 2. Split scenes: `./split.sh video.mp4`
 3. Manually remove useless slide (or change threshold+min slide length)
-4. Extract Audio/Picture/Text: `./extract.sh video_slides`
-5. Craft a CSV for Anki (using copilot): `./purifyText.sh video_slides`
+4. Extract Audio/Picture/Text: `./extract.sh video_dir`
+5. Craft a CSV for Anki (using copilot): `./csv.sh video_dir`
 6. Open Anki, impor the created CSV.
-7. Copy the scene_audio files into the anki media dir (menu: `tools > check media > view files`)
+7. Copy the scene_audio+scene_picture files into the anki media dir (menu: `tools > check media > view files`)
 
 Purification, Why?:
 - solves vietnames character scanning issues not solved by tesseract OCR
