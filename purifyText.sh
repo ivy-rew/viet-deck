@@ -27,7 +27,7 @@ prompt="$(cat <<EOF
 Read all txt files in ${text_dir}.
 Fix Vietnamese character issues/spelling mistakes.
 Return only CSV rows (no markdown, no code fences, no explanations) with this format:
-word_vn; word_en; synonyms (optional); usage1_vn; usage1_en; usage2_vn; usage2_en; audio; picture;
+word_vn;word_en;synonyms (optional);usage1_vn;usage1_en;usage2_vn;usage2_en;audio;picture;
 
 Rules:
 - Audio is the corresponding .mp3 file in ${audio_dir}
