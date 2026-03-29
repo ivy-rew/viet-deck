@@ -11,7 +11,7 @@ fi
 
 INPUT="$1"
 BASENAME="$(basename "$INPUT" | sed 's/\.[^.]*$//')"
-WORKDIR="./${BASENAME}_slides_tmp"
+WORKDIR="./${BASENAME}_tmp"
 
 # Scene-detection tuning knobs (override with environment variables)
 SCENE_THRESH="${SCENE_THRESH:-0.009}"
@@ -77,7 +77,7 @@ if [ "$N" -lt 2 ]; then
 fi
 
 
-mkdir -p "${BASENAME}_slides"
+mkdir -p "${BASENAME}"
 
 SKIP_DURATION="${SKIP_DURATION:-6.0}"
 for i in $(seq 0 $((N-2))); do
@@ -107,7 +107,7 @@ for i in $(seq 0 $((N-2))); do
   DUR=$(awk -v a="$START" -v b="$END" 'BEGIN{printf "%.3f", b-a}')
   if (( $(echo "$DUR >= ${SKIP_DURATION}" | bc -l) )); then
     idx=$(printf "%03d" $((i+1)))
-    OUT="${BASENAME}_slides/${BASENAME}_slide_${idx}.mp4"
+    OUT="${BASENAME}/${BASENAME}_${idx}.mp4"
     # Keep frame-accurate video re-encode, but copy audio to avoid re-encoding.
     ffmpeg -hide_banner -y -ss "$START" -i "$INPUT" -t "$DUR" -c:v libx264 -preset veryfast -crf 20 -c:a copy "$OUT"
     echo "Wrote $OUT (start=$START duration=$DUR)"
@@ -119,4 +119,4 @@ done
 # Cleanup (optional)
 #rm -rf "$WORKDIR"
 
-echo "Done: splitted into $((N-1)) slides in ./${BASENAME}_slides/"
+echo "Done: splitted into $((N-1)) slides in ./${BASENAME}/"
