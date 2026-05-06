@@ -57,5 +57,17 @@ curl --fail --location --progress-bar \
 	--output "$OUTPUT_FILE" \
 	"${BASE_URL}?text=${ENCODED_TEXT}&voice_id=${ENCODED_VOICE}"
 echo "Saved: $OUTPUT_FILE"
-echo "Converted: $(mp3_encode $OUTPUT_FILE)"
+MP3_FILE="$(mp3_encode $OUTPUT_FILE)"
 rm $OUTPUT_FILE
+echo "Converted: $MP3_FILE"
+
+read -p "Copy $MP3_FILE to ANKI media? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+	cp -v "$MP3_FILE" collection.media/
+    echo "ready for usage in Anki field:"
+    echo "[sound:$MP3_FILE]"
+fi
+
+
+
