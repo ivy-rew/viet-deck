@@ -52,11 +52,13 @@ if [[ -z "$OUTPUT_FILE" ]]; then
 	OUTPUT_FILE="$(simplify_name "$TEXT").wav"
 fi
 
-
+TTS_URL="${BASE_URL}?text=${ENCODED_TEXT}&voice_id=${ENCODED_VOICE}"
+echo "fetching: $TTS_URL"
 curl --fail --location --progress-bar \
 	--output "$OUTPUT_FILE" \
-	"${BASE_URL}?text=${ENCODED_TEXT}&voice_id=${ENCODED_VOICE}"
+	"${TTS_URL}"
 echo "Saved: $OUTPUT_FILE"
+sleep 1
 MP3_FILE="$(mp3_encode $OUTPUT_FILE)"
 rm $OUTPUT_FILE
 echo "Converted: $MP3_FILE"
