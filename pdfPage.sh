@@ -24,13 +24,13 @@ pdfseparate -f "$PAGE_FROM" -l "$PAGE_TO" "$PDF" "$TMP_DIR/page-%d.pdf"
 # Rasterise each page and OCR them in order
 RAW=""
 for PAGE_PDF in $(ls "$TMP_DIR"/page-*.pdf 2>/dev/null | sort -V); do
-    pdftoppm -r 300 -png "$PAGE_PDF" "$TMP_DIR/img"
+    pdftoppm -r 400 -png "$PAGE_PDF" "$TMP_DIR/img"
     PAGE_IMG=$(ls "$TMP_DIR"/img-*.png 2>/dev/null | head -n 1)
     if [[ -z "$PAGE_IMG" ]]; then
         echo "Error: could not rasterise $PAGE_PDF" >&2
         exit 1
     fi
-    PAGE_TEXT=$(tesseract -l vie+eng --oem 1 --psm 4 "$PAGE_IMG" stdout 2>&1 | grep -v '^Tesseract')
+    PAGE_TEXT=$(tesseract -l vie+eng --oem 1 --psm 3 "$PAGE_IMG" stdout 2>&1 | grep -v '^Tesseract')
     RAW="${RAW}${PAGE_TEXT}"$'\n'
     rm -f "$TMP_DIR"/img-*.png
 done
