@@ -2,12 +2,13 @@
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
-    echo "Usage: $0 <pdf_file> <page_number>" >&2
+    echo "Usage: $0 <pdf_file> <page> [end_page]" >&2
     exit 1
 fi
 
 PDF="$1"
-PAGE="$2"
+PAGE_FROM="$2"
+PAGE_TO="${3:-$PAGE_FROM}"
 
 if [[ ! -f "$PDF" ]]; then
     echo "Error: file not found: $PDF" >&2
@@ -17,28 +18,25 @@ fi
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Extract the requested page as a single-page PDF (no rasterisation = no quality loss)
-# pdfseparate inserts the page number into the filename (%d placeholder)
-pdfseparate -f "$PAGE" -l "$PAGE" "$PDF" "$TMP_DIR/page-%d.pdf"
-PAGE_PDF="$TMP_DIR/page-${PAGE}.pdf"
+# Extract the requested page range as a single PDF
+pdfseparate -f "$PAGE_FROM" -l "$PAGE_TO" "$PDF" "$TMP_DIR/page-%d.pdf"
 
-if [[ ! -f "$PAGE_PDF" ]]; then
-    echo "Error: could not extract page $PAGE from $PDF" >&2
-    exit 1
-fi
-
-# Rasterise the single extracted page to PNG for tesseract
-pdftoppm -r 300 -png "$PAGE_PDF" "$TMP_DIR/img"
-PAGE_IMG=$(ls "$TMP_DIR"/img-*.png 2>/dev/null | head -n 1)
-
-if [[ -z "$PAGE_IMG" ]]; then
-    echo "Error: could not rasterise page $PAGE" >&2
-    exit 1
-fi
+# Rasterise each page and OCR them in order
+RAW=""
+for PAGE_PDF in $(ls "$TMP_DIR"/page-*.pdf 2>/dev/null | sort -V); do
+    pdftoppm -r 300 -png "$PAGE_PDF" "$TMP_DIR/img"
+    PAGE_IMG=$(ls "$TMP_DIR"/img-*.png 2>/dev/null | head -n 1)
+    if [[ -z "$PAGE_IMG" ]]; then
+        echo "Error: could not rasterise $PAGE_PDF" >&2
+        exit 1
+    fi
+    PAGE_TEXT=$(tesseract -l vie+eng --oem 1 --psm 4 "$PAGE_IMG" stdout 2>&1 | grep -v '^Tesseract')
+    RAW="${RAW}${PAGE_TEXT}"$'\n'
+    rm -f "$TMP_DIR"/img-*.png
+done
 
 # Run OCR — capture output and show it immediately
 echo "=== Raw OCR ===" >&2
-RAW=$(tesseract -l vie+eng --oem 1 --psm 4 "$PAGE_IMG" stdout 2>&1 | grep -v '^Tesseract')
 echo "$RAW"
 
 # Ask before running Copilot
@@ -51,4 +49,12 @@ PROMPT="Fix Vietnamese character issues and spelling mistakes in the following O
 
 ${RAW}"
 
-copilot -s -p "$PROMPT" --model gpt-4.1
+COPILOT_OUT=$(copilot -s -p "$PROMPT" --model gpt-4.1)
+echo "$COPILOT_OUT"
+
+echo "" >&2
+read -r -p "Save Copilot output to file? (enter filename or leave blank to skip): " SAVE_FILE
+if [[ -n "$SAVE_FILE" ]]; then
+    echo "$COPILOT_OUT" > "$SAVE_FILE"
+    echo "Saved to $SAVE_FILE" >&2
+fi
