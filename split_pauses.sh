@@ -6,7 +6,7 @@ set -euo pipefail
 export LC_ALL=C
 
 usage() {
-  echo "Usage: $0 input_audio [output_dir]" >&2
+  echo "Usage: $0 input_audio [output_dir] [output_base_name]" >&2
   exit 2
 }
 
@@ -46,10 +46,11 @@ audio_duration() {
 }
 
 main() {
-  [[ $# -lt 1 || $# -gt 2 ]] && usage
+  [[ $# -lt 1 || $# -gt 3 ]] && usage
 
   local input_file=$1
   local output_dir=${2:-split}
+  local output_base_name=${3:-}
 
   if [[ ! -f "$input_file" ]]; then
     echo "Input file not found: $input_file" >&2
@@ -106,8 +107,12 @@ main() {
   echo "Splitting into ${#final_starts[@]} segments -> ${output_dir}/"
 
   local base
-  base=$(basename "$input_file")
-  base=${base%.*}
+  if [[ -n "$output_base_name" ]]; then
+    base=$output_base_name
+  else
+    base=$(basename "$input_file")
+    base=${base%.*}
+  fi
 
   for ((idx=0; idx<${#final_starts[@]}; idx++)); do
     local s e out
