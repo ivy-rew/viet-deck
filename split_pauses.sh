@@ -51,6 +51,8 @@ main() {
   local input_file=$1
   local output_dir=${2:-split}
   local output_base_name=${3:-}
+  local start_preroll=${START_PREROLL:-0.08}
+  local end_postroll=${END_POSTROLL:-0.02}
 
   if [[ ! -f "$input_file" ]]; then
     echo "Input file not found: $input_file" >&2
@@ -96,6 +98,15 @@ main() {
     local seg_start seg_end seg_len
     seg_start=${segment_starts[$idx]}
     seg_end=${segment_ends[$idx]}
+
+    if (( idx > 0 )); then
+      seg_start=$(awk -v s="$seg_start" -v p="$start_preroll" 'BEGIN { v=s-p; if (v<0) v=0; printf "%.6f", v }')
+    fi
+
+    if (( idx < ${#segment_ends[@]}-1 )); then
+      seg_end=$(awk -v e="$seg_end" -v p="$end_postroll" -v t="$total" 'BEGIN { v=e+p; if (v>t) v=t; printf "%.6f", v }')
+    fi
+
     seg_len=$(awk -v s="$seg_start" -v e="$seg_end" 'BEGIN { printf "%.6f", (e-s) }')
 
     if awk -v l="$seg_len" 'BEGIN { exit !(l > 0.15) }'; then
@@ -115,12 +126,14 @@ main() {
   fi
 
   for ((idx=0; idx<${#final_starts[@]}; idx++)); do
-    local s e out
+    local s e out d
     s=${final_starts[$idx]}
     e=${final_ends[$idx]}
+    d=$(awk -v s="$s" -v e="$e" 'BEGIN { printf "%.6f", (e-s) }')
     out=$(printf "%s/%s_%03d.mp3" "$output_dir" "$base" "$((idx+1))")
 
-    ffmpeg -y -i "$input_file" -ss "$s" -to "$e" -c copy "$out" >/dev/null 2>&1
+    # Re-encode audio to make split points sample-accurate.
+    ffmpeg -y -ss "$s" -i "$input_file" -t "$d" -c:a libmp3lame -q:a 2 "$out" >/dev/null 2>&1
 
     awk -v i="$((idx+1))" -v s="$s" -v e="$e" -v out="$out" '
       BEGIN {
